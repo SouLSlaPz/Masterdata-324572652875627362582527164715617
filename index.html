@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Manager (App B)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&family=Exo+2:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;700&family=Lato:wght@400;700&family=Poppins:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- CSS VARIABLE SYSTEM --- */
+        :root {
+            --bg-main: #111;
+            --text-main: #fff;
+            --border-main: rgba(255,255,255,0.2);
+            --color-p: #4ade80; /* Positive */
+            --color-n: #f87171; /* Negative */
+            --color-a: #3b82f6; /* Accent */
+            --glass-bg: rgba(25, 25, 25, 0.6);
+            --input-bg: rgba(0, 0, 0, 0.3);
+            --font-main: 'Inter', sans-serif;
+        }
+
+        html, body { margin: 0; padding: 0; height: 100%; font-family: var(--font-main); }
+        
+        body { 
+            background: var(--bg-main); 
+            color: var(--text-main); 
+            transition: background 0.3s ease, color 0.3s ease;
+            display: flex; 
+            flex-direction: column; 
+            min-height: 100vh;
+        }
+        
+        /* Layout */
+        .container-fluid { width: 100%; padding: 1.5rem; max-width: 1800px; margin: 0 auto; display: flex; flex-direction: column; height: 100vh; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1rem; border-bottom: 1px solid var(--border-main); margin-bottom: 1.5rem; }
+        
+        /* PIN Screen */
+        #pin-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0f172a; color: white; transition: opacity 0.5s ease; }
+        #pin-overlay.hidden { opacity: 0; pointer-events: none; }
+        .pin-input { font-size: 2rem; letter-spacing: 0.5rem; text-align: center; width: 300px; background: transparent; border: none; border-bottom: 2px solid var(--color-a); color: white; outline: none; margin-bottom: 2rem; }
+        
+        /* Glass Panels (Tables, Stats, Filters) */
+        .panel {
+            background: var(--glass-bg);
+            border: 1px solid var(--border-main);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Stats Bar */
+        .stat-box { 
+            background: var(--input-bg); 
+            padding: 0.75rem 1.25rem; 
+            border-radius: 0.5rem; 
+            border: 1px solid var(--border-main); 
+            min-width: 120px; 
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 0.25rem; font-weight: 600; }
+        .stat-value { font-size: 1.25rem; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+
+        /* Controls */
+        .form-select, .form-input { 
+            background: var(--input-bg); 
+            border: 1px solid var(--border-main); 
+            padding: 0.5rem; 
+            border-radius: 0.375rem; 
+            color: var(--text-main); 
+            font-size: 0.85rem; 
+            outline: none;
+        }
+        .form-select:focus, .form-input:focus { border-color: var(--color-a); }
+
+        .btn { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; border: 1px solid transparent; }
+        .btn-primary { background: var(--color-a); color: #fff; }
+        .btn-primary:hover { filter: brightness(1.1); }
+        .btn-ghost { background: transparent; border-color: var(--border-main); color: var(--text-main); }
+        .btn-ghost:hover { background: var(--border-main); }
+        .btn-danger { background: var(--color-n); color: #fff; }
+        
+        /* Data Table */
+        .data-table-container { overflow-x: auto; flex-grow: 1; border-radius: 0.5rem; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
+        th { 
+            text-align: right; 
+            font-weight: 600; 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+            background: var(--glass-bg); /* Match panel */
+            color: var(--text-main); 
+            opacity: 0.9;
+            padding: 1rem 0.5rem;
+            border-bottom: 2px solid var(--border-main);
+            backdrop-filter: blur(12px);
+        }
+        td { 
+            padding: 0.75rem 0.5rem; 
+            text-align: right; 
+            border-bottom: 1px solid var(--border-main); 
+            white-space: nowrap; 
+        }
+        th:first-child, td:first-child { text-align: left; padding-left: 1.5rem; }
+        th:last-child, td:last-child { padding-right: 1.5rem; }
+        tr:hover td { background-color: var(--border-main); }
+        tr.row-hidden { opacity: 0.4; filter: grayscale(100%); }
+
+        /* Dynamic Text Colors */
+        .txt-p { color: var(--color-p) !important; }
+        .txt-n { color: var(--color-n) !important; }
+        .font-mono { font-family: 'IBM Plex Mono', monospace; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 50; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { background: var(--bg-main); padding: 2rem; border-radius: 0.75rem; width: 100%; max-width: 600px; border: 1px solid var(--border-main); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); max-height: 90vh; overflow-y: auto; color: var(--text-main); }
+        .modal-overlay.active { display: flex; }
+
+        .view-panel { display: none; }
+        .view-panel.active { display: flex; flex-direction: column; height: 100%; }
+        .hidden { display: none !important; }
+        .flex { display: flex !important; } /* Force flex for toggled containers */
+    </style>
+</head>
+<body class="dark-theme app-body">
+
+    <!-- PIN Screen -->
+    <div id="pin-overlay">
+        <div class="text-center">
+            <h2 class="text-2xl font-bold mb-2 tracking-widest text-blue-400">MANAGER ACCESS</h2>
+            <div id="pin-status" class="text-gray-400 mb-8 text-xs">Secure Connection Establishing...</div>
+            <input type="password" id="pin-input" class="pin-input" placeholder="••••" disabled>
+        </div>
+    </div>
+
+    <div class="container-fluid" id="app-content" style="display:none;">
+        <!-- Header -->
+        <header class="header">
+            <div class="flex items-center gap-6">
+                <h1 class="text-xl font-bold tracking-tight opacity-90">TRADING MANAGER</h1>
+                <nav class="flex gap-2">
+                    <button id="nav-data" class="btn btn-primary">Data</button>
+                    <button id="nav-models" class="btn btn-ghost">Models</button>
+                    <button id="nav-settings" class="btn btn-ghost">Settings</button>
+                </nav>
+            </div>
+            <div class="flex items-center gap-3">
+                 <div class="flex items-center gap-2">
+                    <span class="text-xs opacity-60 uppercase font-bold">Theme</span>
+                    <select id="theme-select" class="form-select text-xs py-1 min-w-[120px]"></select>
+                 </div>
+                <div class="h-4 w-px bg-white/20"></div>
+                <div class="text-xs opacity-50 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-green-500 block"></span>
+                    <span id="connection-status">Online</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- DATA VIEW -->
+        <div id="view-data" class="view-panel active">
+            <!-- Filter Bar -->
+            <div class="panel p-4 mb-4 flex flex-wrap gap-4 items-end">
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold opacity-70">MODEL</label>
+                    <select id="filter-model" class="form-select w-48"><option value="all">All Models</option></select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold opacity-70">DATE RANGE</label>
+                    <select id="filter-range" class="form-select w-32">
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold opacity-70">TIME PERIOD</label>
+                    <select id="filter-period" class="form-select w-40">
+                        <option value="all">All Sessions</option>
+                        <option value="london">London (02:00-06:00)</option>
+                        <option value="early">Early (08:30-12:30)</option>
+                        <option value="late">Late (12:30-16:00)</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <!-- Custom Time Inputs -->
+                <div id="custom-period-container" class="hidden gap-2 items-end">
+                    <div class="flex flex-col gap-1"><label class="text-xs font-bold opacity-70">Start</label><input type="time" id="filter-custom-start" class="form-input w-24"></div>
+                    <div class="flex flex-col gap-1"><label class="text-xs font-bold opacity-70">End</label><input type="time" id="filter-custom-end" class="form-input w-24"></div>
+                </div>
+
+                <div class="flex-grow"></div>
+                
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-2">
+                    <button id="btn-export-excel" class="btn btn-primary" style="background-color: var(--color-p); color: #111;">Copy Excel</button>
+                    <button id="btn-wipe-model" class="btn btn-danger hidden">Wipe Model</button>
+                </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                <div class="stat-box"><div class="stat-label">Avg Profit</div><div id="disp-profit" class="stat-value">$0.00</div></div>
+                <div class="stat-box"><div class="stat-label">Avg Win Rate</div><div id="disp-winrate" class="stat-value">0%</div></div>
+                <div class="stat-box"><div class="stat-label">Avg F</div><div id="disp-f" class="stat-value">0.00</div></div>
+                <div class="stat-box"><div class="stat-label">Avg Win ($)</div><div id="disp-avgwin" class="stat-value">$0.00</div></div>
+                <div class="stat-box"><div class="stat-label">Vol Variance</div><div id="disp-variance" class="stat-value">0.00</div></div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="data-table-container panel">
+                <table id="sessions-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Model</th>
+                            <th>S</th>
+                            <th>W</th>
+                            <th>L</th>
+                            <th>T</th>
+                            <th>MaxL</th>
+                            <th>Profit</th>
+                            <th>W/R%</th>
+                            <th>F</th>
+                            <th>AvgWin ($)</th>
+                            <th>Time</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- MODELS VIEW -->
+        <div id="view-models" class="view-panel p-4">
+             <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">Manage Models</h2>
+                <button id="refresh-models-btn" class="btn btn-ghost">Refresh List</button>
+             </div>
+             <div class="panel p-4">
+                 <div id="models-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                     <!-- Models injected here -->
+                 </div>
+             </div>
+        </div>
+
+        <!-- SETTINGS VIEW -->
+        <div id="view-settings" class="view-panel p-4 max-w-lg mx-auto">
+            <h2 class="text-2xl font-bold mb-6">System Settings</h2>
+            <div class="panel p-6 mb-6">
+                <h3 class="text-lg font-bold mb-4">Security</h3>
+                <div class="space-y-4">
+                    <div><label class="block text-xs uppercase font-bold opacity-60 mb-1">Current PIN</label><input type="password" id="current-pin-change" class="form-input w-full" maxlength="4"></div>
+                    <div><label class="block text-xs uppercase font-bold opacity-60 mb-1">New PIN (4 Digits)</label><input type="password" id="new-pin" class="form-input w-full" maxlength="4"></div>
+                    <button id="save-pin-btn" class="btn btn-primary w-full justify-center">Update PIN</button>
+                    <p id="pin-msg" class="text-xs mt-2 text-center h-4"></p>
+                </div>
+            </div>
+            <div class="panel p-6">
+                <h3 class="text-lg font-bold mb-4">Data Management</h3>
+                <button id="refresh-data-btn" class="btn btn-ghost w-full justify-center">Force Refresh Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Session Modal -->
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="text-xl font-bold mb-4 text-center">Edit Session</h3>
+            <input type="hidden" id="edit-id">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2"><label class="text-xs opacity-70">Model</label><select id="edit-model" class="form-input w-full"></select></div>
+                <div><label class="text-xs opacity-70">Date</label><input type="date" id="edit-date" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Time</label><input type="text" id="edit-time" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Score</label><input type="number" step="0.01" id="edit-score" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Total Trades</label><input type="number" id="edit-trades" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Wins</label><input type="number" id="edit-wins" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Losses</label><input type="number" id="edit-losses" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Max Loss ($)</label><input type="number" step="0.01" id="edit-maxl" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Instrument</label><input type="text" id="edit-instrument" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Point Value</label><input type="number" step="0.01" id="edit-point-value" class="form-input w-full"></div>
+                <div><label class="text-xs opacity-70">Commission</label><input type="number" step="0.01" id="edit-commission" class="form-input w-full"></div>
+            </div>
+            <div class="flex gap-2 mt-6 justify-end pt-4 border-t border-white/10">
+                <button id="delete-session-btn" class="btn btn-danger mr-auto">Delete</button>
+                <button id="cancel-edit-btn" class="btn btn-ghost">Cancel</button>
+                <button id="save-edit-btn" class="btn btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Model Modal -->
+    <div id="model-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="text-xl font-bold mb-4 text-center">Edit Model Details</h3>
+            <input type="hidden" id="model-edit-id">
+            <div class="space-y-3">
+                <div><label class="text-xs opacity-70">Model Name</label><input type="text" id="model-name-edit" class="form-input w-full"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-xs opacity-70">Management</label><input type="text" id="model-mgmt-edit" class="form-input w-full"></div>
+                    <div><label class="text-xs opacity-70">Ratio/Stop</label><input type="text" id="model-ratio-edit" class="form-input w-full"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-xs opacity-70">Exit</label><input type="text" id="model-exit-edit" class="form-input w-full"></div>
+                    <div><label class="text-xs opacity-70">Instrument</label><input type="text" id="model-inst-edit" class="form-input w-full"></div>
+                </div>
+                <div class="bg-yellow-500/10 p-3 rounded border border-yellow-500/30">
+                    <label class="text-xs font-bold text-yellow-500">Average Loss (Points)</label>
+                    <input type="number" step="0.01" id="model-avgloss-edit" class="form-input w-full border-yellow-500/50" placeholder="e.g. 2.5">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-6 justify-end pt-4 border-t border-white/10">
+                <button id="delete-model-btn" class="btn btn-danger mr-auto">Delete</button>
+                <button id="cancel-model-btn" class="btn btn-ghost">Cancel</button>
+                <button id="save-model-btn" class="btn btn-primary">Save Model</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, getDoc, getDocs, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const MASTER_KEY = "01512899027"; 
+        
+        // --- THEME DATA ---
+        const themeData = [
+            { id: 'obsidian-theme', name: 'Obsidian', font: "'IBM Plex Mono', monospace", colors: { bg: '#111111', text: '#FFFFFF', border: '#333333', p: '#38BDF8', n: '#3F3F46', a: '#FFFFFF' } },
+            { id: 'dark-theme', name: 'Dark', font: "'Poppins', sans-serif", colors: { bg: '#111111', text: '#F9FAFB', border: '#333', p: '#15803d', n: '#b91c1c', a: '#3b82f6' } },
+            { id: 'ice-theme', name: 'Ice', font: "'Lato', sans-serif", colors: { bg: 'linear-gradient(to top, #f3e5f5, #e0f7fa)', text: '#2d3748', border: '#805ad5', p: '#3182ce', n: '#805ad5', a: '#805ad5' } },
+            { id: 'sunrise-theme', name: 'Sunrise', font: "'Lato', sans-serif", colors: { bg: 'linear-gradient(to top, #D8B4FE, #FDE68A)', text: '#422006', border: '#F97316', p: '#F97316', n: '#581C87', a: '#854D0E' } },
+            { id: 'cyberpunk-theme', name: 'Cyberpunk', font: "'Orbitron', sans-serif", colors: { bg: 'linear-gradient(to top, #2D0B5A, #0C1445)', text: '#A5F3FC', border: '#F472B6', p: '#22D3EE', n: '#F472B6', a: '#22D3EE' } },
+            { id: 'forest-theme', name: 'Forest', font: "'Nunito', sans-serif", colors: { bg: 'linear-gradient(to top, #1E2A2A, #07373E)', text: '#EAE7E2', border: '#6EE7B7', p: '#6EE7B7', n: '#E57373', a: '#8D6E63' } },
+            { id: 'crimson-theme', name: 'Crimson', font: "'Merriweather', serif", colors: { bg: 'linear-gradient(to top, #121212, #1C1C1C)', text: '#F5F5F5', border: '#DC2626', p: '#B91C1C', n: '#4B5563', a: '#D4AF37' } },
+            { id: 'blueprint-theme', name: 'Blueprint', font: "'Roboto Mono', monospace", colors: { bg: '#0A2240', text: '#FFFFFF', border: '#7DD3FC', p: '#4ADE80', n: '#FACC15', a: '#7DD3FC' } },
+            { id: 'monochrome-theme', name: 'Monochrome', font: "'Inter', sans-serif", colors: { bg: '#F3F4F6', text: '#111827', border: '#D1D5DB', p: '#111827', n: '#6B7280', a: '#111827' } },
+            { id: 'oceanic-theme', name: 'Oceanic', font: "'Source Sans Pro', sans-serif", colors: { bg: 'linear-gradient(to top, #021024, #08203e)', text: '#E0E7FF', border: '#64ffda', p: '#FF7F50', n: '#4f8fc0', a: '#64ffda' } },
+            { id: 'iridescent-theme', name: 'Iridescent', font: "'Poppins', sans-serif", colors: { bg: 'linear-gradient(45deg, #a7f3d0, #bae6fd, #fbcfe8, #fef08a)', text: '#581c87', border: '#d8b4fe', p: '#065f46', n: '#9d174d', a: '#581c87' } },
+            { id: 'nebula-theme', name: 'Nebula', font: "'Exo 2', sans-serif", colors: { bg: 'linear-gradient(45deg, #1E1B4B, #86198F, #134E4A)', text: '#F0F9FF', border: '#A855F7', p: '#14B8A6', n: '#D946EF', a: '#6366F1' } },
+            { id: 'supernova-theme', name: 'Supernova', font: "'Space Mono', monospace", colors: { bg: 'linear-gradient(45deg, #1E293B, #86198F, #B45309)', text: '#FFFBEB', border: '#FACC15', p: '#F97316', n: '#4F46E5', a: '#FACC15' } },
+            { id: 'nocturne-theme', name: 'Nocturne', font: "'DM Sans', sans-serif", colors: { bg: 'linear-gradient(to top, #191970, #4B0000, #003300)', text: '#E5E5E5', border: '#8B0000', p: '#006400', n: '#8B0000', a: '#4169E1' } },
+            { id: 'emerald-theme', name: 'Emerald', font: "'JetBrains Mono', monospace", colors: { bg: 'linear-gradient(to top, #010201, #051412)', text: '#E2E8F0', border: '#10B981', p: '#10B981', n: '#3730A3', a: '#10B981' } },
+            { id: 'volcano-theme', name: 'Volcano', font: "'Russo One', sans-serif", colors: { bg: 'linear-gradient(to top, #000000, #4C1D1D, #2D080A)', text: '#FFF7ED', border: '#FF4500', p: '#DC2626', n: '#36454F', a: '#FF8C00' } },
+            { id: 'phantom-theme', name: 'Phantom', font: "'Inter', sans-serif", colors: { bg: 'radial-gradient(circle, #222222, #000000)', text: '#FFFFFF', border: '#444', p: '#9CA3AF', n: '#4B5563', a: '#FFFFFF' } },
+            { id: 'carbon-theme', name: 'Carbon', font: "'Oxanium', sans-serif", colors: { bg: 'linear-gradient(45deg, #111111, #333333)', text: '#FFFFFF', border: '#EF4444', p: '#EF4444', n: '#555', a: '#EF4444' } },
+            { id: 'aura-theme', name: 'Aura', font: "'Montserrat', sans-serif", colors: { bg: 'linear-gradient(45deg, #FFDDE1, #EE9CA7, #C6EA8D)', text: '#444444', border: '#A78BFA', p: '#FFDAB9', n: '#ADD8E6', a: '#8B5CF6' } },
+            { id: 'frostfire-theme', name: 'Frostfire', font: "'Orbitron', sans-serif", colors: { bg: 'linear-gradient(to top, #3B82F6, #60A5FA)', text: '#FFFFFF', border: '#F97316', p: '#F97316', n: '#2563EB', a: '#FFFFFF' } },
+            { id: 'gilded-theme', name: 'Gilded', font: "'Cinzel', serif", colors: { bg: 'linear-gradient(to bottom, #1C1C1C, #111111)', text: '#EAEAEA', border: '#E6B800', p: '#E6B800', n: '#333333', a: '#FFD700' } },
+            { id: 'black-gold-theme', name: 'Black Gold', font: "'Cormorant Garamond', serif", colors: { bg: 'linear-gradient(45deg, #121212, #282828)', text: '#F5F5F4', border: '#D4AF37', p: '#D4AF37', n: '#A8A29E', a: '#D4AF37' } },
+            { id: 'midnight-bloom-theme', name: 'Midnight Bloom', font: "'DM Sans', sans-serif", colors: { bg: 'linear-gradient(to top, #0c0a2d, #1d1a3f)', text: '#e0e7ff', border: '#f43f5e', p: '#22d3ee', n: '#f43f5e', a: '#a78bfa' } },
+            { id: 'crystal-clear-theme', name: 'Crystal Clear', font: "'Inter', sans-serif", colors: { bg: 'linear-gradient(to top, #e0f2fe, #f0f9ff)', text: '#075985', border: '#6366f1', p: '#16a34a', n: '#f97316', a: '#6366f1' } },
+            { id: 'duskfire-theme', name: 'Duskfire', font: "'Exo 2', sans-serif", colors: { bg: 'linear-gradient(to top, #4c1d95, #f97316, #fef08a)', text: '#fefce8', border: '#c2410c', p: '#c2410c', n: '#581c87', a: '#c2410c' } }
+        ];
+
+   const firebaseConfig = {
+  apiKey: "AIzaSyBIlEbTnEzkcXJs0sRKOGx0xA5AWOWZdb4",
+  authDomain: "tracker2026-330ca.firebaseapp.com",
+  projectId: "tracker2026-330ca",
+  storageBucket: "tracker2026-330ca.firebasestorage.app",
+  messagingSenderId: "810324319247",
+  appId: "1:810324319247:web:97ea4879073fc4f619577a"
+};
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-trading-ecosystem';
+
+        let db, auth;
+        let sessions = [];
+        let models = [];
+        let currentPin = "1234";
+
+        // --- DOM ---
+        const tableBody = document.getElementById('table-body');
+        const filterModel = document.getElementById('filter-model');
+        const filterRange = document.getElementById('filter-range');
+        const filterPeriod = document.getElementById('filter-period');
+        const filterCustomStart = document.getElementById('filter-custom-start');
+        const filterCustomEnd = document.getElementById('filter-custom-end');
+        const customPeriodContainer = document.getElementById('custom-period-container');
+        const btnWipeModel = document.getElementById('btn-wipe-model');
+        const btnExportExcel = document.getElementById('btn-export-excel');
+        
+        const themeSelect = document.getElementById('theme-select');
+        const pinOverlay = document.getElementById('pin-overlay');
+        const pinInput = document.getElementById('pin-input');
+        
+        // Stats
+        const dispProfit = document.getElementById('disp-profit');
+        const dispWinrate = document.getElementById('disp-winrate');
+        const dispF = document.getElementById('disp-f');
+        const dispAvgWin = document.getElementById('disp-avgwin');
+        const dispVariance = document.getElementById('disp-variance');
+
+        // --- THEME LOGIC ---
+        function populateThemeSelect() {
+            themeSelect.innerHTML = '';
+            themeData.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name;
+                themeSelect.appendChild(opt);
+            });
+            // Set initial value
+            const saved = localStorage.getItem('appB_theme') || 'obsidian-theme';
+            themeSelect.value = saved;
+            applyTheme(saved);
+        }
+
+        function applyTheme(themeId) {
+            const theme = themeData.find(t => t.id === themeId);
+            if(!theme) return;
+            
+            const root = document.documentElement;
+            // Set CSS Variables
+            root.style.setProperty('--bg-main', theme.colors.bg);
+            root.style.setProperty('--text-main', theme.colors.text);
+            root.style.setProperty('--border-main', theme.colors.border);
+            root.style.setProperty('--color-p', theme.colors.p);
+            root.style.setProperty('--color-n', theme.colors.n);
+            root.style.setProperty('--color-a', theme.colors.a);
+            root.style.setProperty('--font-main', theme.font);
+            
+            const isLight = ['ice-theme', 'sunrise-theme', 'monochrome-theme', 'crystal-clear-theme', 'aura-theme'].includes(themeId);
+            
+            if(isLight) {
+                 root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.6)');
+                 root.style.setProperty('--input-bg', 'rgba(255, 255, 255, 0.8)');
+            } else {
+                 root.style.setProperty('--glass-bg', 'rgba(20, 20, 20, 0.6)');
+                 root.style.setProperty('--input-bg', 'rgba(0, 0, 0, 0.3)');
+            }
+
+            localStorage.setItem('appB_theme', themeId);
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            populateThemeSelect(); // Load themes immediately
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        document.getElementById('pin-status').textContent = "Connection Secure. Enter PIN.";
+                        pinInput.disabled = false;
+                        pinInput.focus();
+                        
+                        const pinRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'pin');
+                        const pinSnap = await getDoc(pinRef);
+                        if (pinSnap.exists()) {
+                            currentPin = pinSnap.data().code;
+                        } else {
+                            await setDoc(pinRef, { code: "1234" });
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.error(e);
+                alert("Connection Error. Refresh.");
+            }
+        });
+
+        // --- PIN LOGIC ---
+        pinInput.addEventListener('keyup', (e) => {
+            const val = pinInput.value;
+            if (val.length >= 4) {
+                if (val === currentPin || val === MASTER_KEY) {
+                    pinOverlay.classList.add('hidden');
+                    document.getElementById('app-content').style.display = 'block';
+                    loadData();
+                } else {
+                    if(val.length > 11) pinInput.value = ''; 
+                    if(val.length === 4 || val.length === 11) {
+                        document.getElementById('pin-error').classList.remove('hidden');
+                        setTimeout(() => document.getElementById('pin-error').classList.add('hidden'), 2000);
+                        pinInput.value = '';
+                    }
+                }
+            }
+        });
+
+        // --- DATA LOADING ---
+        function loadData() {
+            const modelsRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_models');
+            onSnapshot(modelsRef, (snap) => {
+                models = [];
+                filterModel.innerHTML = '<option value="all">All Models</option>';
+                const editModelSelect = document.getElementById('edit-model');
+                editModelSelect.innerHTML = '';
+                
+                snap.forEach(doc => {
+                    const m = { id: doc.id, ...doc.data() };
+                    models.push(m);
+                    
+                    const opt = document.createElement('option');
+                    opt.value = m.fullString; 
+                    opt.textContent = m.fullString;
+                    filterModel.appendChild(opt);
+
+                    const editOpt = document.createElement('option');
+                    editOpt.value = m.fullString;
+                    editOpt.textContent = m.fullString;
+                    editModelSelect.appendChild(editOpt);
+                });
+                renderModelsList();
+                renderTable(); 
+            });
+
+            const sessionsRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_sessions');
+            onSnapshot(sessionsRef, (snap) => {
+                sessions = [];
+                snap.forEach(doc => {
+                    sessions.push({ id: doc.id, ...doc.data() });
+                });
+                renderTable();
+            });
+        }
+
+        // --- CALCULATIONS ---
+        function calculateAvgWin(s, model) {
+            if(!model || !model.avgLoss || s.wins === 0) return 0;
+            const avgLossPoints = parseFloat(model.avgLoss); 
+            const grossWinPoints = (avgLossPoints * s.losses) + s.score;
+            const avgWinPoints = grossWinPoints / s.wins;
+            return avgWinPoints * s.pointValue;
+        }
+
+        function calculateStandardVariance(values) {
+            if(values.length < 2) return 0;
+            const mean = values.reduce((a, b) => a + b, 0) / values.length;
+            const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
+            return variance;
+        }
+
+        // --- HELPER TIME CHECK ---
+        function isTimeInPeriod(sessionTimeStr, period) {
+            if (!sessionTimeStr) return false;
+            
+            // Extract first valid HH:MM found
+            const match = sessionTimeStr.match(/(\d{1,2}):(\d{2})/);
+            if (!match) return false;
+            
+            const h = parseInt(match[1], 10);
+            const m = parseInt(match[2], 10);
+            const timeVal = h + (m / 60);
+
+            if (period === 'london') return timeVal >= 2 && timeVal < 6;
+            if (period === 'early') return timeVal >= 8.5 && timeVal < 12.5;
+            if (period === 'late') return timeVal >= 12.5 && timeVal < 16;
+            
+            if (period === 'custom') {
+                 const sVal = document.getElementById('filter-custom-start').value;
+                 const eVal = document.getElementById('filter-custom-end').value;
+                 if(!sVal || !eVal) return true; // Show all if custom range incomplete
+                 
+                 const [sh, sm] = sVal.split(':').map(Number);
+                 const [eh, em] = eVal.split(':').map(Number);
+                 const startLimit = sh + (sm/60);
+                 const endLimit = eh + (em/60);
+                 
+                 return timeVal >= startLimit && timeVal <= endLimit;
+            }
+            return true;
+        }
+
+        // --- RENDERING TABLE ---
+        function renderTable() {
+            tableBody.innerHTML = '';
+            
+            let totalProfit = 0;
+            let totalWins = 0;
+            let totalLosses = 0;
+            let fValues = [];
+            let avgWinValues = [];
+            let tradeCounts = [];
+
+            const selectedModel = filterModel.value;
+            const selectedRange = filterRange.value;
+            const selectedPeriod = filterPeriod.value;
+
+            // Toggle UI Elements
+            btnWipeModel.classList.toggle('hidden', selectedModel === 'all');
+            
+            if (selectedPeriod === 'custom') {
+                customPeriodContainer.classList.remove('hidden');
+                customPeriodContainer.classList.add('flex');
+            } else {
+                customPeriodContainer.classList.add('hidden');
+                customPeriodContainer.classList.remove('flex');
+            }
+            
+            const filtered = sessions.filter(s => {
+                if (selectedModel !== 'all' && s.modelName !== selectedModel) return false;
+                
+                if (selectedRange !== 'all') {
+                    const date = new Date(s.date);
+                    const now = new Date();
+                    if (selectedRange === 'today') return date.toDateString() === now.toDateString();
+                    if (selectedRange === 'week') {
+                        const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
+                        return date >= firstDay;
+                    }
+                    if (selectedRange === 'month') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                    if (selectedRange === 'year') return date.getFullYear() === now.getFullYear();
+                }
+
+                if (selectedPeriod !== 'all') {
+                    if (!isTimeInPeriod(s.sessionTime, selectedPeriod)) return false;
+                }
+                return true;
+            });
+
+            filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            filtered.forEach(s => {
+                const tr = document.createElement('tr');
+                const isHidden = s.hidden === true;
+                if(isHidden) tr.classList.add('row-hidden');
+
+                const profit = (s.score * s.pointValue) - (s.totalTrades * s.commission);
+                
+                const model = models.find(m => m.fullString === s.modelName);
+                const avgWinVal = calculateAvgWin(s, model);
+                const avgWinDisplay = (model && model.avgLoss && s.wins > 0) ? `$${avgWinVal.toFixed(2)}` : '<span class="opacity-30">-</span>';
+
+                if (!isHidden) {
+                    totalProfit += profit;
+                    totalWins += (s.wins || 0);
+                    totalLosses += (s.losses || 0);
+                    
+                    const validTrades = s.wins + s.losses;
+                    if(validTrades > 0) {
+                        fValues.push(s.totalTrades / validTrades);
+                    }
+                    if(model && model.avgLoss && s.wins > 0) {
+                        avgWinValues.push(avgWinVal);
+                    }
+                    tradeCounts.push(s.totalTrades);
+                }
+                
+                const validTrades = s.wins + s.losses;
+                const winRate = validTrades > 0 ? ((s.wins / validTrades) * 100).toFixed(0) + '%' : '-';
+                const fVal = validTrades > 0 ? (s.totalTrades / validTrades).toFixed(2) : '-';
+
+                tr.innerHTML = `
+                    <td class="font-mono">${s.date}</td>
+                    <td class="text-xs opacity-75 truncate max-w-[150px]" title="${s.modelName}">${s.modelName}</td>
+                    <td>${s.score.toFixed(2)}</td>
+                    <td class="txt-p">${s.wins}</td>
+                    <td class="txt-n">${s.losses}</td>
+                    <td>${s.totalTrades}</td>
+                    <td class="txt-n font-mono">$${(s.maxLoss || 0).toFixed(2)}</td>
+                    <td class="font-bold font-mono ${profit >= 0 ? 'txt-p' : 'txt-n'}">$${profit.toFixed(0)}</td>
+                    <td>${winRate}</td>
+                    <td>${fVal}</td>
+                    <td class="font-mono">${avgWinDisplay}</td>
+                    <td class="text-xs opacity-50">${s.sessionTime}</td>
+                    <td class="flex gap-2 justify-end">
+                        <button class="btn-icon hide-btn" title="${isHidden ? 'Unhide' : 'Hide'}" data-id="${s.id}" data-hidden="${isHidden}">
+                           ${isHidden ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.944 5.944 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/><path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.299.822.822a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829z"/><path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 8.884-12-12 .708-.708 12 12-.708.708z"/></svg>`}
+                        </button>
+                        <button class="btn-icon edit-btn" data-id="${s.id}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg></button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+            
+            // Stats Calculation
+            const sessionCount = tradeCounts.length;
+            const avgProfit = sessionCount > 0 ? totalProfit / sessionCount : 0;
+
+            const totalValid = totalWins + totalLosses; 
+            const avgWR = totalValid > 0 ? ((totalWins / totalValid) * 100).toFixed(0) + '%' : '0%';
+            const avgF = fValues.length > 0 ? (fValues.reduce((a,b)=>a+b,0)/fValues.length).toFixed(2) : '0.00';
+            const avgAvgWin = avgWinValues.length > 0 ? (avgWinValues.reduce((a,b)=>a+b,0)/avgWinValues.length).toFixed(2) : '0.00';
+            const volVar = calculateStandardVariance(tradeCounts).toFixed(2);
+
+            dispProfit.textContent = `$${avgProfit.toFixed(2)}`;
+            dispProfit.className = `stat-value ${avgProfit >= 0 ? 'txt-p' : 'txt-n'}`;
+            dispWinrate.textContent = avgWR;
+            dispF.textContent = avgF;
+            dispAvgWin.textContent = `$${avgAvgWin}`;
+            dispVariance.textContent = volVar;
+
+            document.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', (e) => openEditModal(btn.dataset.id)));
+            document.querySelectorAll('.hide-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+                const id = btn.dataset.id;
+                const isHidden = btn.dataset.hidden === 'true';
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_sessions', id), { hidden: !isHidden });
+            }));
+        }
+
+        // --- MODEL MANAGEMENT ---
+        function renderModelsList() {
+            const container = document.getElementById('models-list-container');
+            container.innerHTML = '';
+            
+            models.forEach(m => {
+                const hasAvgLoss = m.avgLoss && m.avgLoss > 0;
+                const el = document.createElement('div');
+                el.className = 'panel p-4 flex justify-between items-start';
+                el.innerHTML = `
+                    <div>
+                        <div class="font-bold flex items-center gap-2 text-sm">
+                            ${m.name} 
+                            ${!hasAvgLoss ? '<span title="Missing Avg Loss - AvgWin calc disabled" class="text-yellow-500 cursor-help">⚠️</span>' : ''}
+                        </div>
+                        <div class="text-xs opacity-50 mt-1">${m.fullString}</div>
+                        <div class="text-xs mt-2 txt-p">Avg Loss: ${hasAvgLoss ? m.avgLoss : 'Not Set'}</div>
+                    </div>
+                    <button class="btn-icon edit-model-btn" data-id="${m.id}">✏️</button>
+                `;
+                container.appendChild(el);
+            });
+            
+            document.querySelectorAll('.edit-model-btn').forEach(btn => {
+                btn.addEventListener('click', () => openModelModal(btn.dataset.id));
+            });
+        }
+        
+        function openModelModal(id) {
+            const m = models.find(x => x.id === id);
+            if(!m) return;
+            
+            document.getElementById('model-edit-id').value = id;
+            document.getElementById('model-name-edit').value = m.name;
+            document.getElementById('model-mgmt-edit').value = m.mgmt;
+            document.getElementById('model-ratio-edit').value = m.ratio;
+            document.getElementById('model-exit-edit').value = m.exit;
+            document.getElementById('model-inst-edit').value = m.inst;
+            document.getElementById('model-avgloss-edit').value = m.avgLoss || '';
+            
+            document.getElementById('model-modal').classList.add('active');
+        }
+        
+        document.getElementById('cancel-model-btn').onclick = () => document.getElementById('model-modal').classList.remove('active');
+        
+        document.getElementById('save-model-btn').onclick = async () => {
+            const id = document.getElementById('model-edit-id').value;
+            const name = document.getElementById('model-name-edit').value;
+            const mgmt = document.getElementById('model-mgmt-edit').value;
+            const ratio = document.getElementById('model-ratio-edit').value;
+            const exit = document.getElementById('model-exit-edit').value;
+            const inst = document.getElementById('model-inst-edit').value;
+            const avgLoss = parseFloat(document.getElementById('model-avgloss-edit').value);
+            
+            const fullString = `(${name} ${mgmt} ${ratio} ${exit} ${inst})`.toUpperCase();
+            
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_models', id), {
+                name, mgmt, ratio, exit, inst, fullString, avgLoss
+            });
+            document.getElementById('model-modal').classList.remove('active');
+        };
+
+        document.getElementById('delete-model-btn').onclick = async () => {
+             if(confirm("Delete this model definition? Existing sessions will keep their historical string.")) {
+                 const id = document.getElementById('model-edit-id').value;
+                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_models', id));
+                 document.getElementById('model-modal').classList.remove('active');
+             }
+        };
+
+        // --- BULK ACTIONS ---
+        btnWipeModel.onclick = async () => {
+            const modelName = filterModel.value;
+            if(modelName === 'all') return;
+            
+            const enteredPin = prompt("WARNING: This will delete ALL sessions for '" + modelName + "'. Enter PIN to confirm:");
+            if(enteredPin !== currentPin && enteredPin !== MASTER_KEY) {
+                alert("Incorrect PIN.");
+                return;
+            }
+            
+            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'global_sessions'), where("modelName", "==", modelName));
+            const snapshot = await getDocs(q);
+            const batch = writeBatch(db);
+            snapshot.docs.forEach((doc) => { batch.delete(doc.ref); });
+            await batch.commit();
+            alert(`Deleted ${snapshot.size} sessions.`);
+        };
+        
+        btnExportExcel.onclick = () => {
+            const headers = Array.from(document.querySelectorAll('#sessions-table th')).map(th => th.textContent.trim());
+            headers.pop();
+            const rows = Array.from(document.querySelectorAll('#table-body tr')).map(tr => {
+                if(tr.classList.contains('row-hidden')) return null;
+                return Array.from(tr.querySelectorAll('td')).slice(0, -1).map(td => td.textContent.trim()).join('\t');
+            }).filter(r => r);
+            const text = [headers.join('\t'), ...rows].join('\n');
+            navigator.clipboard.writeText(text).then(() => alert("Data copied to clipboard! Paste into Excel."));
+        };
+
+        // --- EDIT SESSION LOGIC ---
+        function openEditModal(id) {
+            const s = sessions.find(x => x.id === id);
+            if (!s) return;
+            
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-model').value = s.modelName;
+            document.getElementById('edit-date').value = s.date;
+            document.getElementById('edit-time').value = s.sessionTime;
+            document.getElementById('edit-score').value = s.score;
+            document.getElementById('edit-trades').value = s.totalTrades;
+            document.getElementById('edit-wins').value = s.wins;
+            document.getElementById('edit-losses').value = s.losses;
+            document.getElementById('edit-maxl').value = s.maxLoss || 0;
+            document.getElementById('edit-instrument').value = s.instrument;
+            document.getElementById('edit-point-value').value = s.pointValue;
+            document.getElementById('edit-commission').value = s.commission;
+            
+            document.getElementById('edit-modal').classList.add('active');
+        }
+
+        document.getElementById('cancel-edit-btn').onclick = () => document.getElementById('edit-modal').classList.remove('active');
+        
+        document.getElementById('delete-session-btn').onclick = async () => {
+            if(confirm("Permanently delete this session record?")) {
+                const id = document.getElementById('edit-id').value;
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_sessions', id));
+                document.getElementById('edit-modal').classList.remove('active');
+            }
+        };
+
+        document.getElementById('save-edit-btn').onclick = async () => {
+            const id = document.getElementById('edit-id').value;
+            const updateData = {
+                modelName: document.getElementById('edit-model').value,
+                date: document.getElementById('edit-date').value,
+                sessionTime: document.getElementById('edit-time').value,
+                score: parseFloat(document.getElementById('edit-score').value),
+                totalTrades: parseInt(document.getElementById('edit-trades').value),
+                wins: parseInt(document.getElementById('edit-wins').value),
+                losses: parseInt(document.getElementById('edit-losses').value),
+                maxLoss: parseFloat(document.getElementById('edit-maxl').value),
+                instrument: document.getElementById('edit-instrument').value,
+                pointValue: parseFloat(document.getElementById('edit-point-value').value),
+                commission: parseFloat(document.getElementById('edit-commission').value)
+            };
+            
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'global_sessions', id), updateData);
+            document.getElementById('edit-modal').classList.remove('active');
+        };
+
+        // --- THEME SELECT EVENT ---
+        themeSelect.onchange = (e) => applyTheme(e.target.value);
+
+        // --- NAVIGATION ---
+        const panels = ['view-data', 'view-models', 'view-settings'];
+        const navBtns = ['nav-data', 'nav-models', 'nav-settings'];
+        
+        function switchPanel(panelId, btnId) {
+            panels.forEach(p => {
+                document.getElementById(p).classList.toggle('active', p === panelId);
+                document.getElementById(p).style.display = p === panelId ? (p === 'view-data' ? 'flex' : 'block') : 'none';
+            });
+            navBtns.forEach(b => {
+                const btn = document.getElementById(b);
+                if(b === btnId) {
+                    btn.classList.add('btn-primary');
+                    btn.classList.remove('btn-ghost');
+                } else {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-ghost');
+                }
+            });
+        }
+        
+        document.getElementById('nav-data').onclick = () => switchPanel('view-data', 'nav-data');
+        document.getElementById('nav-models').onclick = () => switchPanel('view-models', 'nav-models');
+        document.getElementById('nav-settings').onclick = () => switchPanel('view-settings', 'nav-settings');
+
+        // --- FILTERS ---
+        // Setup listeners for filters - these were missing in the previous version
+        filterModel.addEventListener('change', renderTable);
+        filterRange.addEventListener('change', renderTable);
+        filterPeriod.addEventListener('change', renderTable);
+        filterCustomStart.addEventListener('change', renderTable);
+        filterCustomEnd.addEventListener('change', renderTable);
+
+    </script>
+</body>
+</html>
